@@ -1,4 +1,3 @@
-```python
 import argparse
 import os
 import logging
@@ -160,3 +159,9 @@ def main():
     if input_path.is_file():
         process_file(input_path, output_dir)
     elif input_path.is_dir():
+        process_directory(input_path, output_dir, args.recursive)
+    else:
+        logging.error(f"Input path does not exist: {input_path}")
+
+if __name__ == "__main__":
+    main()

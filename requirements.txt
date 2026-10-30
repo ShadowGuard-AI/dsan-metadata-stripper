@@ -1,0 +1,5 @@
+Faker
+chardet
+Pillow
+PyPDF2
+python-docx
