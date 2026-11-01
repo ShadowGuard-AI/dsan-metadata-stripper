@@ -16,7 +16,10 @@ from docx.oxml import OxmlElement
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Initialize Faker for anonymization
+# Faker is initialized here and chardet is imported above, and neither is
+# used anywhere in this file. They are not harmless: both imports have to
+# succeed before a single file is stripped, so a host missing either one
+# cannot run the tool at all, for capabilities it never calls.
 faker = Faker()
 
 def setup_argparse():
@@ -62,7 +65,13 @@ def strip_pdf_metadata(file_path, output_path):
         reader = PdfReader(file_path)
         writer = PdfWriter()
 
-        # Copy content without metadata
+        # Building a fresh writer from the pages alone strips more than
+        # the info dictionary set to None below: the document outline,
+        # named destinations, attachments, and form level data live
+        # outside the pages and are never copied across. For a plain
+        # paged document that is exactly what I want. For one that relies
+        # on its bookmarks or attachments, this pass removes structure,
+        # not just metadata, and nothing warns about it.
         for page in reader.pages:
             writer.add_page(page)
 
@@ -165,6 +174,13 @@ def strip_image_metadata(file_path, output_path):
     Removes metadata from an image file. Returns True on success, False on error.
     """
     try:
+        # Rebuilding from raw pixels drops every metadata block by
+        # construction, and a few things that are not metadata: the color
+        # profile and DPI go with it, a multi frame image keeps only the
+        # frame getdata reads, and a JPEG is re-encoded at the default
+        # quality, so the picture itself changes slightly, not just its
+        # tags. Palette and transparency survive only as far as the mode
+        # carries them.
         image = Image.open(file_path)
         data = list(image.getdata())
         image_without_metadata = Image.new(image.mode, image.size)
@@ -204,6 +220,12 @@ def process_directory(input_dir, output_dir, recursive):
     Returns (processed, failed) counts.
     """
     processed = 0
+    # Unsupported files count as failed alongside genuine errors, and main
+    # fails the whole run when failed is above zero, so one stray text file
+    # in a folder of PDFs makes the run report failure even though every
+    # supported file was stripped. If the output directory sits inside the
+    # input directory, the walk can also meet files this same run is
+    # writing, because only an exact same path is refused in main.
     failed = 0
     for root, _, files in os.walk(input_dir):
         for file in files:
